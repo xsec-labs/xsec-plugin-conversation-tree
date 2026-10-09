@@ -17,6 +17,7 @@ import { ConversationTreeInteractions } from "./interactions.js";
 import { graphModel, selectedModel } from "./model.js";
 import { createShell } from "./shell.js";
 import { installStyles } from "./styles.js";
+import { parseTheme, readInitialTheme } from "./theme.js";
 import { renderFatal, renderView } from "./view.js";
 
 function isRecord(value) {
@@ -54,7 +55,7 @@ export class ConversationTreeController {
       return graph;
     } catch (value) {
       this.state.error = `渲染对话树失败：${errorMessage(value)}`;
-      renderFatal(this.controls, this.state.error);
+      renderFatal(this.controls, this.state.error, this.state, this.actions);
       return null;
     }
   }
@@ -146,7 +147,7 @@ export class ConversationTreeController {
     if (drag && this.controls?.canvas.hasPointerCapture(drag.pointerId)) {
       this.controls.canvas.releasePointerCapture(drag.pointerId);
     }
-    this.controls?.canvas.classList.remove("is-dragging");
+    this.controls?.canvas?.classList.remove("is-dragging");
   }
 
   resetSessionState(context) {
@@ -295,10 +296,12 @@ export class ConversationTreeController {
   }
 
   applyTheme(theme) {
-    document.documentElement.dataset.xsecTheme = theme?.["color-mode"] === "light" ? "light" : "dark";
+    this.controls.settings = parseTheme(theme);
+    this.state.themeError = null;
   }
 
   async mount(nextRoot, initialContext) {
+    if (this.disposed || this.root) throw new Error("conversation_tree_mount_unavailable");
     this.root = nextRoot;
     installStyles();
     this.hostContext = initialContext;
@@ -307,9 +310,12 @@ export class ConversationTreeController {
     this.lastContextRevision = contextRevision(mergedContext);
     this.state = initialControllerState(context, sourceState(context));
     this.controls = createShell(this.root, this.actions);
-    const mode = getComputedStyle(document.documentElement).getPropertyValue("--xsec-color-mode").trim();
-    this.applyTheme({ "color-mode": mode });
-    this.themeSubscription = this.host.onTheme?.((theme) => this.applyTheme(theme));
+    this.applyTheme(readInitialTheme());
+    this.themeSubscription = this.host.onTheme?.((theme) => {
+      try { this.applyTheme(theme); }
+      catch (error) { this.state.themeError = errorMessage(error); console.error("conversation-tree.theme.failed", { error_code: "THEME_INVALID" }); }
+      this.render();
+    });
     this.render();
     if (this.state.tree) this.interactions.resetView();
     console.info("conversation-tree.mount", { treeAvailable: Boolean(this.state.tree) });
@@ -320,10 +326,13 @@ export class ConversationTreeController {
   }
 
   async dispose() {
+    if (this.disposed) return;
     console.debug("conversation-tree.dispose");
     this.disposed = true;
     if (this.state) this.state.generation += 1;
     this.themeSubscription?.dispose();
+    this.releaseDrag(this.state?.drag);
+    this.controls?.reactRoot.unmount();
     this.root?.replaceChildren();
   }
 }

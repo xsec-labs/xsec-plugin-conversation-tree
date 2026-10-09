@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { ConversationTreeController } from "../src/controller.js";
 import { canReadTree, parseContext, sourceState } from "../src/context.js";
 import { contextRevision } from "../src/controller-state.js";
@@ -18,6 +21,7 @@ const unsupportedContext = {
 
 function stateFor(parsed, overrides = {}) {
   return {
+    query: "", mode: "all", showAgentMessages: false, selectedId: null,
     context: parsed,
     tree: parsed.tree,
     treeHash: parsed.treeHash,
@@ -43,8 +47,6 @@ test("navigation authority updates invalidate requests and clear recovered conte
   const controller = new ConversationTreeController({});
   controller.state = stateFor(parseContext(context(projection)), { loading: false, navigating: true });
   const fence = { generation: 4, sessionId: "session-1" };
-  controller.render = () => null;
-  controller.interactions.resetView = () => {};
   controller.updateContext(context(projection, { status: "running" }));
   assert.equal(controller.state.generation, 5);
   assert.equal(controller.state.navigating, false);
@@ -62,10 +64,12 @@ test("equivalent context updates do not rerender the conversation tree", () => {
   const controller = new ConversationTreeController({});
   controller.state = stateFor(parseContext(initial));
   controller.lastContextRevision = contextRevision(initial);
-  let renders = 0;
-  controller.render = () => { renders += 1; };
+  const before = controller.state.context;
+  const generation = controller.state.generation;
   controller.updateContext(equivalent);
-  assert.equal(renders, 0);
+  assert.equal(controller.state.context, before);
+  assert.equal(controller.state.generation, generation);
+  assert.equal(controller.state.error, "old context error");
 });
 
 test("failed navigation preserves the current viewport", async () => {
@@ -73,52 +77,54 @@ test("failed navigation preserves the current viewport", async () => {
     message("root", { active: true }),
     message("target", { parentId: "root" }),
   ], { activeLeafId: "root" });
-  const controller = new ConversationTreeController({}, { navigateTree: async () => { throw new Error("rejected"); } });
+  const directory = await mkdtemp(join(tmpdir(), "conversation-tree-navigation-"));
+  const controller = new ConversationTreeController({}, { navigateTree: () => readFile(join(directory, "absent.json")) });
   controller.state = stateFor(parseContext(context(branching)), {
     loading: false,
     selectedId: "target",
     mode: "all",
     showAgentMessages: false,
-    query: "",
+    query: "", view: { x: 81, y: 62, scale: 0.7 },
   });
-  controller.render = () => null;
-  let resets = 0;
-  controller.interactions.resetView = () => { resets += 1; };
-  await controller.navigate("target");
-  assert.equal(resets, 0);
-  assert.match(controller.state.error, /rejected/);
+  const before = controller.state.view;
+  try {
+    await controller.navigate("target");
+    assert.equal(controller.state.view, before);
+    assert.equal(controller.state.navigating, false);
+    assert.match(controller.state.error, /ENOENT/);
+  } finally { await rm(directory, { recursive: true }); }
 });
 
-test("reads reset the viewport only after installing a ready tree", async () => {
+test("a real read failure preserves the current viewport and clears loading", async () => {
   const parsed = parseContext(context(projection));
-  const responses = [{ status: "busy" }, new Error("invalid response")];
-  for (const response of responses) {
-    const requests = { readTree: async () => {
-      if (response instanceof Error) throw response;
-      return response;
-    } };
-    const controller = new ConversationTreeController({}, requests);
-    controller.state = stateFor(parsed, { loading: false });
-    controller.render = () => null;
-    let resets = 0;
-    controller.interactions.resetView = () => { resets += 1; };
+  const directory = await mkdtemp(join(tmpdir(), "conversation-tree-read-"));
+  const controller = new ConversationTreeController({}, { readTree: () => readFile(join(directory, "absent.json")) });
+  controller.state = stateFor(parsed, { loading: false, view: { x: 81, y: 62, scale: 0.7 } });
+  const before = controller.state.view;
+  try {
     await controller.load();
-    assert.equal(resets, 0);
-  }
-  const ready = new ConversationTreeController({}, { readTree: async () => ({ status: "ready", tree: projection }) });
-  ready.state = stateFor(parsed, { loading: false });
-  ready.render = () => null;
-  let readyResets = 0;
-  ready.interactions.resetView = () => { readyResets += 1; };
-  await ready.load();
-  assert.equal(readyResets, 1);
+    assert.equal(controller.state.view, before);
+    assert.equal(controller.state.loading, false);
+    assert.match(controller.state.error, /ENOENT/);
+  } finally { await rm(directory, { recursive: true }); }
+});
+
+test("ready and busy result patches preserve the viewport until the renderer applies layout", () => {
+  const controller = new ConversationTreeController({});
+  controller.state = stateFor(parseContext(context(projection)), { view: { x: 81, y: 62, scale: 0.7 } });
+  const before = controller.state.view;
+  controller.acceptReadResponse({ status: "busy" }, "hash-1");
+  assert.equal(controller.state.view, before);
+  assert.equal(controller.state.treeHash, null);
+  controller.acceptReadResponse({ status: "ready", tree: projection }, "hash-1");
+  assert.equal(controller.state.view, before);
+  assert.equal(controller.state.tree.activeLeafId, "root");
+  assert.equal(controller.state.navigationBaseHash, "hash-1");
 });
 
 test("new tree authority invalidates an in-flight request", () => {
   const controller = new ConversationTreeController({});
   controller.state = stateFor(parseContext(context(projection)));
-  controller.render = () => null;
-  controller.interactions.resetView = () => {};
   controller.updateContext(context(projection, { treeHash: "hash-2" }));
   assert.equal(controller.state.generation, 5);
   assert.equal(controller.state.loading, false);
@@ -128,38 +134,32 @@ test("valid no-tree recovery clears context errors", () => {
   const parsed = parseContext(unsupportedContext);
   const controller = new ConversationTreeController({});
   controller.state = stateFor(parsed, { loading: false });
-  controller.render = () => null;
-  controller.interactions.resetView = () => {};
   controller.updateContext(unsupportedContext);
   assert.equal(controller.state.error, null);
   assert.equal(controller.state.tree, null);
 });
 
 test("unsupported snapshots cannot reach the host read boundary", async () => {
-  let requests = 0;
-  const controller = new ConversationTreeController({}, { readTree: async () => { requests += 1; } });
+  const controller = new ConversationTreeController({});
   controller.state = stateFor(parseContext(unsupportedContext), { loading: false });
-  controller.render = () => null;
   await controller.load();
-  assert.equal(requests, 0);
+  assert.equal(controller.state.generation, 4);
+  assert.equal(controller.state.loading, false);
 });
 
 test("an unbound workspace cannot reach the host read boundary", async () => {
-  let requests = 0;
   const parsed = parseContext({ visible: true, workspace: {} });
-  const controller = new ConversationTreeController({}, { readTree: async () => { requests += 1; } });
+  const controller = new ConversationTreeController({});
   controller.state = stateFor(parsed, { loading: false });
-  controller.render = () => null;
   assert.equal(canReadTree(parsed), false);
   await controller.load();
-  assert.equal(requests, 0);
+  assert.equal(controller.state.generation, 4);
+  assert.equal(controller.state.loading, false);
 });
 
 test("an unbound workspace clears a previously loaded snapshot", () => {
   const controller = new ConversationTreeController({});
   controller.state = stateFor(parseContext(context(projection)), { loadedTree: true, loading: false });
-  controller.render = () => null;
-  controller.interactions.resetView = () => {};
   controller.updateContext({ visible: true, workspace: {} });
   assert.equal(controller.state.tree, null);
   assert.equal(controller.state.loadedTree, false);
@@ -168,8 +168,6 @@ test("an unbound workspace clears a previously loaded snapshot", () => {
 test("a truncated session switch clears the previous session tree", () => {
   const controller = new ConversationTreeController({});
   controller.state = stateFor(parseContext(context(projection)), { loading: false, query: "session one" });
-  controller.render = () => null;
-  controller.interactions.resetView = () => {};
   const next = context({ ...projection, sessionId: "session-2" });
   next.truncated = true;
   delete next.workspace.session.conversation_tree;
@@ -182,8 +180,6 @@ test("a truncated session switch clears the previous session tree", () => {
 test("a truncated update for the same session retains its browseable tree", () => {
   const controller = new ConversationTreeController({});
   controller.state = stateFor(parseContext(context(projection)), { loading: false });
-  controller.render = () => null;
-  controller.interactions.resetView = () => {};
   const next = context(projection);
   next.truncated = true;
   delete next.workspace.session.conversation_tree;
@@ -206,8 +202,6 @@ test("a loaded tree remains until the projection hash advances", () => {
     navigationBaseHash: "hash-1",
     loading: false,
   });
-  controller.render = () => null;
-  controller.interactions.resetView = () => {};
   controller.updateContext(context(projection));
   assert.equal(controller.state.tree.activeLeafId, "leaf");
   assert.equal(controller.state.loadedTree, true);
@@ -218,21 +212,17 @@ test("a loaded tree remains until the projection hash advances", () => {
   assert.equal(controller.state.treeHash, "hash-2");
 });
 
-test("an explicit read records and retains the current projection hash", async () => {
+test("a ready read result retains the current projection hash", () => {
   const cached = context(projection);
   const returned = tree([
     message("root", { active: true }),
     message("leaf", { parentId: "root", active: true }),
   ], { activeLeafId: "leaf" });
-  const controller = new ConversationTreeController({}, {
-    readTree: async () => ({ status: "ready", tree: returned }),
-  });
+  const controller = new ConversationTreeController({});
   const parsed = parseContext(cached);
   controller.state = stateFor(parsed, { loading: false });
   controller.lastContextRevision = contextRevision(cached);
-  controller.render = () => null;
-  controller.interactions.resetView = () => {};
-  await controller.load();
+  controller.acceptReadResponse({ status: "ready", tree: returned }, controller.state.treeHash);
   controller.updateContext(cached);
   assert.equal(controller.state.tree.activeLeafId, "leaf");
   assert.equal(controller.state.loadedTree, true);
@@ -240,17 +230,13 @@ test("an explicit read records and retains the current projection hash", async (
   assert.equal(controller.state.treeHash, null);
 });
 
-test("repeated authoritative context is processed after a non-ready read", async () => {
+test("repeated authoritative context is processed after a non-ready read result", () => {
   const cached = context(projection);
-  const controller = new ConversationTreeController({}, {
-    readTree: async () => ({ status: "busy" }),
-  });
+  const controller = new ConversationTreeController({});
   const parsed = parseContext(cached);
   controller.state = stateFor(parsed, { loading: false });
   controller.lastContextRevision = contextRevision(cached);
-  controller.render = () => null;
-  controller.interactions.resetView = () => {};
-  await controller.load();
+  controller.acceptReadResponse({ status: "busy" }, controller.state.treeHash);
   assert.equal(controller.state.treeHash, null);
   controller.updateContext(cached);
   assert.equal(controller.state.treeHash, "hash-1");
@@ -268,8 +254,6 @@ test("navigation results wait for a new authoritative hash", () => {
   ], { activeLeafId: "target" });
   const controller = new ConversationTreeController({});
   controller.state = stateFor(parseContext(context(branching)), { loading: false });
-  controller.render = () => null;
-  controller.interactions.resetView = () => {};
   controller.acceptNavigation({ result: navigated }, "target", "hash-1");
   controller.updateContext(context(branching));
   assert.equal(controller.state.tree.activeLeafId, "target");
@@ -288,8 +272,6 @@ test("rebinding through an unbound workspace resets session filters", () => {
     mode: "active",
     showAgentMessages: true,
   });
-  controller.render = () => null;
-  controller.interactions.resetView = () => {};
   controller.updateContext({ visible: true, workspace: {} });
   controller.updateContext(context({ ...projection, sessionId: "session-2" }));
   assert.equal(controller.state.query, "");

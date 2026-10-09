@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { emptyContent } from "../src/view.js";
+import { emptyContent } from "../src/view-model.js";
 
 const state = {
   loading: false,

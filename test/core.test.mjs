@@ -13,7 +13,7 @@ import {
   validateTree,
   visibleMessages,
   zoomView,
-} from "../src/index.js";
+} from "../src/core.js";
 import { message, tree } from "./fixtures.mjs";
 
 const branch = [
