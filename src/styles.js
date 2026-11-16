@@ -13,7 +13,6 @@ body{overflow:hidden;background:var(--ui-surface);color:var(--ui-text)}
 .ct-toolbar{position:sticky;top:0;z-index:4;display:flex;align-items:center;gap:8px;height:52px;flex:0 0 auto;padding:0 8px 0 12px;border-bottom:1px solid var(--ui-hairline);background:var(--ui-surface)}
 .ct-title{display:flex;flex:1;min-width:0;align-items:center;gap:6px}
 .ct-title strong{overflow:hidden;font-size:14px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
-.ct-title-info{display:grid;place-items:center;flex:0 0 auto;color:var(--ui-faint);cursor:help}
 .ct-badge{display:inline-flex;height:22px;align-items:center;padding:0 8px;border-radius:999px;background:var(--ui-subtle);color:var(--ui-muted);font-size:12px;font-weight:600;white-space:nowrap}
 .ct-badge.is-ready,.ct-badge.is-cached{background:var(--ui-success-soft);color:var(--ui-success)}
 .ct-badge.is-error,.ct-badge.is-unsupported{background:var(--ui-danger-soft);color:var(--ui-danger)}
@@ -26,7 +25,7 @@ body{overflow:hidden;background:var(--ui-surface);color:var(--ui-text)}
 .ct-search-field{position:relative;display:block;min-width:0}
 .ct-search-field svg{position:absolute;top:50%;left:10px;transform:translateY(-50%);color:var(--ui-faint);pointer-events:none}
 .ct-search{width:100%;height:32px;padding:0 10px 0 32px;border:1px solid transparent;border-radius:var(--ui-radius);outline:0;background:var(--ui-subtle);color:var(--ui-text);transition:border-color .12s var(--ui-ease),background-color .12s var(--ui-ease)}
-.ct-search::placeholder{color:var(--ui-faint)}
+.ct-search::placeholder{color:var(--ui-muted)}
 .ct-search:focus{border-color:var(--ui-accent-text);background:var(--ui-surface)}
 .ct-search:disabled{opacity:.5}
 .ct-segments{display:flex;gap:2px;padding:2px;border-radius:var(--ui-radius);background:var(--ui-subtle)}
@@ -38,7 +37,7 @@ body{overflow:hidden;background:var(--ui-surface);color:var(--ui-text)}
 .ct-role-filter input:checked{border-color:var(--ui-accent);background:var(--ui-accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8.5l3 3 6-6.5'/%3E%3C/svg%3E") center / 12px no-repeat}
 .ct-role-filter input:disabled{opacity:.5}
 .ct-role-filter:has(input:disabled){color:var(--ui-faint);cursor:not-allowed}
-.ct-summary{color:var(--ui-faint);font-size:12px;font-variant-numeric:tabular-nums}
+.ct-summary{color:var(--ui-muted);font-size:12px;font-variant-numeric:tabular-nums}
 .ct-summary[hidden]{display:none}
 button:disabled{cursor:not-allowed;opacity:.45}
 
@@ -73,7 +72,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
 .ct-node.role-user .ct-node-meta::before{background:var(--ui-accent)}
 .ct-node-meta i{margin-left:auto;padding:0 6px;border-radius:999px;background:var(--ui-accent-soft);color:var(--ui-accent-text);font-style:normal}
 .ct-node strong{overflow:hidden;color:var(--ui-text);font-size:11.5px;font-weight:600;line-height:16px;text-overflow:ellipsis;white-space:nowrap}
-.ct-node small{color:var(--ui-faint);font-size:10px;font-variant-numeric:tabular-nums;line-height:13px}
+.ct-node small{color:var(--ui-muted);font-size:10px;font-variant-numeric:tabular-nums;line-height:13px}
 .ct-zoom{position:absolute;z-index:2;right:8px;bottom:8px;display:flex;align-items:center;gap:2px;padding:2px;border:1px solid var(--ui-hairline);border-radius:var(--ui-radius);background:var(--ui-surface);box-shadow:var(--ui-shadow);touch-action:manipulation}
 .ct-zoom button{display:grid;min-width:26px;height:26px;place-items:center;padding:0 6px;border:0;border-radius:6px;background:transparent;color:var(--ui-muted);font-size:12px;font-variant-numeric:tabular-nums;cursor:pointer}
 .ct-zoom button:hover:not(:disabled){background:var(--ui-hover);color:var(--ui-text)}
@@ -98,7 +97,7 @@ button:disabled{cursor:not-allowed;opacity:.45}
 .ct-context .ct-tag{background:var(--ui-surface)}
 .ct-pills{display:flex;min-width:0;flex-wrap:wrap;align-items:center;gap:6px}
 .ct-pills strong{margin-right:4px;color:var(--ui-muted);font-weight:400}
-.ct-context-note{color:var(--ui-faint);font-size:12px;line-height:1.5}
+.ct-context-note{color:var(--ui-muted);font-size:12px;line-height:1.5}
 @media(max-width:360px){.ct-filters{grid-template-columns:1fr}.ct-segments button{flex:1}.ct-inspector header{align-items:flex-start;flex-direction:column}}
 @media(max-height:420px){.ct-canvas{height:220px}}
 @media(prefers-reduced-motion:reduce){.ct-stage{will-change:auto}}

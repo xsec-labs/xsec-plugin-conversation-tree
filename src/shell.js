@@ -1,15 +1,27 @@
 import { button, element } from "./elements.js";
 import { icon } from "./icons.js";
 
+// ⓘ 说明：悬停、键盘聚焦或点按都能看到；Esc 或失焦收起。
+function infoButton(message) {
+  const node = element("button", "ui-info");
+  node.type = "button";
+  node.setAttribute("aria-label", message);
+  node.setAttribute("aria-expanded", "false");
+  const tip = element("span", "ui-info-tip", message);
+  tip.setAttribute("aria-hidden", "true");
+  const toggle = (open) => node.setAttribute("aria-expanded", String(open));
+  node.addEventListener("click", () => toggle(node.getAttribute("aria-expanded") !== "true"));
+  node.addEventListener("blur", () => toggle(false));
+  node.addEventListener("keydown", (event) => { if (event.key === "Escape") toggle(false); });
+  return { node, tip };
+}
+
 function buildToolbar(actions) {
   const toolbar = element("header", "ct-toolbar");
   const title = element("span", "ct-title");
-  const info = element("span", "ct-title-info");
-  info.title = "真实 Provider 消息树";
-  info.setAttribute("role", "img");
-  info.setAttribute("aria-label", "真实 Provider 消息树");
-  info.append(icon("info", 14));
-  title.append(element("strong", "", "对话树"), info);
+  const info = infoButton("真实 Provider 消息树");
+  info.node.append(icon("info", 14), info.tip);
+  title.append(element("strong", "", "对话树"), info.node);
   const badge = element("span", "ct-badge", "待加载");
   const refresh = button("ui-button is-ghost is-icon ct-icon-button", "", "读取对话树");
   refresh.title = "显式读取当前会话的完整对话树";

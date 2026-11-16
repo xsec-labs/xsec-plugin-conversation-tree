@@ -48,6 +48,10 @@ export const themeStyles = `
   font: 14px/1.45 var(--ui-font);
   -webkit-font-smoothing: antialiased;
 }
+/* 强调色上的文字按强调色的明度取白或黑。声明里带 var()，旧 WebView 要到计算值时才失效，所以必须包在 @supports 里。 */
+@supports (color: oklch(from red l c h)) {
+  :root { --ui-on-accent: oklch(from var(--ui-accent) clamp(0, (.65 - l) * 1000, 1) 0 0); }
+}
 *, *::before, *::after { box-sizing: border-box; }
 html, body, [data-xsec-plugin-root] { min-width: 0; min-height: 100%; margin: 0; }
 button, textarea, input { font: inherit; color: inherit; }
@@ -90,6 +94,19 @@ button { -webkit-tap-highlight-color: transparent; }
 }
 .ui-toast svg { flex: 0 0 auto; color: var(--ui-success); }
 .ui-toast span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ⓘ：悬停、键盘聚焦或点按时展开说明。 */
+.ui-info {
+  position: relative; display: grid; flex: 0 0 auto; width: 24px; height: 24px; place-items: center; padding: 0; border: 0;
+  border-radius: 50%; background: transparent; color: var(--ui-muted); cursor: help;
+}
+.ui-info:hover, .ui-info[aria-expanded="true"] { background: var(--ui-hover); color: var(--ui-text); }
+.ui-info-tip {
+  display: none; position: absolute; top: calc(100% + 6px); left: 0; z-index: 6; width: max-content; max-width: min(240px, 70vw);
+  padding: 6px 10px; border: 1px solid var(--ui-hairline); border-radius: var(--ui-radius); background: var(--ui-surface);
+  color: var(--ui-text); box-shadow: var(--ui-shadow); font-size: 12px; font-weight: 400; line-height: 1.5; text-align: left; white-space: normal;
+}
+.ui-info:hover .ui-info-tip, .ui-info:focus-visible .ui-info-tip, .ui-info[aria-expanded="true"] .ui-info-tip { display: block; }
 
 .ui-empty { display: grid; justify-items: center; align-content: center; gap: 10px; min-height: 220px; padding: 32px 24px; color: var(--ui-muted); text-align: center; }
 .ui-empty-mark { display: grid; width: 40px; height: 40px; place-items: center; border-radius: var(--ui-radius-panel); background: var(--ui-subtle); color: var(--ui-muted); }
