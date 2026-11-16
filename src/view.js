@@ -1,6 +1,7 @@
 import { MAX_SCALE, MIN_SCALE, NODE_HEIGHT, NODE_WIDTH, matchesQuery } from "./core.js";
 import { canReadTree } from "./context.js";
 import { button, displayValue, element, factList, formatTime, shortText, svgElement } from "./elements.js";
+import { icon } from "./icons.js";
 
 const MIN_STAGE_WIDTH = 520;
 const MIN_STAGE_HEIGHT = 360;
@@ -25,7 +26,6 @@ function renderHeader(controls, state) {
   controls.badge.textContent = state.source.label;
   controls.badge.className = `ct-badge is-${state.source.availability}`;
   controls.refresh.disabled = state.loading || state.navigating || !canReadTree(state.context) || !state.context.visible;
-  controls.refresh.textContent = state.loading ? "◌" : "↻";
   controls.refresh.setAttribute("aria-busy", String(state.loading));
   controls.search.value = state.query;
   controls.all.setAttribute("aria-pressed", String(state.mode === "all"));
@@ -162,7 +162,8 @@ function renderInspectorContext(container, inspector) {
 function navigationButton({ state, graph, selected, actions }) {
   const isCurrent = selected.selected.entryId === graph.leafId;
   const label = isCurrent ? "当前分支" : "切换到此分支";
-  const action = button("ct-action", state.navigating ? "正在切换…" : label);
+  const action = button(`ui-button ct-action${isCurrent ? "" : " is-primary"}`, state.navigating ? "正在切换…" : label);
+  if (!isCurrent) action.prepend(icon("branch", 14));
   const blocked = selected.navigationBlock;
   action.disabled = isCurrent || Boolean(blocked) || state.loading || state.navigating;
   action.title = isCurrent ? "该节点已是当前分支" : blocked ?? "精确切换到所选分支";
@@ -185,7 +186,8 @@ function renderInspector({ controls, state, graph, selected, actions }) {
     ["时间", formatTime(selected.selected.timestamp, true)],
     ["节点", selected.selected.entryId.slice(0, 12), selected.selected.entryId],
   ]);
-  const toggle = button("ct-context-toggle", `${state.contextExpanded ? "⌄" : "›"}  已知上下文`);
+  const toggle = button("ct-context-toggle", "已知上下文");
+  toggle.prepend(icon("chevronRight", 14));
   toggle.disabled = !state.context.visible;
   toggle.setAttribute("aria-expanded", String(state.contextExpanded));
   toggle.addEventListener("click", actions.context);
