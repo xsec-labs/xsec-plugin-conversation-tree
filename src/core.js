@@ -286,6 +286,27 @@ export function focusPath(viewport, activePoint, pathPoints) {
   };
 }
 
+const FIT_MIN_SCALE = 0.6;
+
+// Prefer showing the whole graph so no branch hides outside the viewport;
+// when it cannot fit at a readable scale, fall back to the active path.
+export function fitTree(viewport, points) {
+  if (!points.length) return null;
+  const minX = Math.min(...points.map((point) => point.x));
+  const maxX = Math.max(...points.map((point) => point.x + NODE_WIDTH));
+  const minY = Math.min(...points.map((point) => point.y));
+  const maxY = Math.max(...points.map((point) => point.y + NODE_HEIGHT));
+  const availableWidth = Math.max(1, viewport.width - HORIZONTAL_SAFE_AREA * 2);
+  const availableHeight = Math.max(1, viewport.height - TOP_SAFE_AREA - BOTTOM_SAFE_AREA);
+  const scale = Math.min(DEFAULT_SCALE, availableWidth / (maxX - minX), availableHeight / (maxY - minY));
+  if (scale < FIT_MIN_SCALE) return null;
+  return {
+    scale,
+    x: viewport.width / 2 - ((minX + maxX) / 2) * scale,
+    y: TOP_SAFE_AREA + (availableHeight - (maxY - minY) * scale) / 2 - minY * scale,
+  };
+}
+
 export function matchesQuery(message, query) {
   const normalized = query.trim().toLocaleLowerCase("zh-CN");
   if (!normalized) return true;

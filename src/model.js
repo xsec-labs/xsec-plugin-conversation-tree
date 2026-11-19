@@ -4,6 +4,7 @@ import {
   layoutTree,
   matchesQuery,
   nodeDepths,
+  parentMap,
   preferredSelection,
   treePath,
   visibleMessages,
@@ -32,6 +33,36 @@ export function graphModel(state) {
   return { messages, leafId, active, activeIds, visible, selectedId, layout, depths, positioned, positions };
 }
 
+function latestChild(children) {
+  return [...children].sort((left, right) => left.timestamp - right.timestamp || left.entryId.localeCompare(right.entryId)).at(-1);
+}
+
+// The host only navigates "exact" and only to Agent messages. A user message
+// stands for its branch, so it resolves to the newest Agent reply on that
+// branch: follow the latest child at each fork and stop at the last Agent node.
+export function navigationTarget(messages, selected, activeIds) {
+  if (selected.role === "assistant") {
+    return { targetEntryId: selected.entryId, current: false, block: null };
+  }
+  if (activeIds.has(selected.entryId)) return { targetEntryId: null, current: true, block: null };
+  const parents = parentMap(messages);
+  const children = new Map();
+  for (const message of messages) {
+    const parent = parents.get(message.entryId);
+    if (!parent) continue;
+    children.set(parent, [...(children.get(parent) ?? []), message]);
+  }
+  let target = null;
+  let current = selected;
+  while (current) {
+    if (current.role === "assistant") target = current;
+    const next = children.get(current.entryId);
+    current = next ? latestChild(next) : null;
+  }
+  if (!target) return { targetEntryId: null, current: false, block: "该用户消息还没有 Agent 回复，无法切换到此分支" };
+  return { targetEntryId: target.entryId, current: false, block: null };
+}
+
 export function selectedModel(state, graph) {
   if (!graph?.selectedId) return null;
   const selected = graph.messages.find((message) => message.entryId === graph.selectedId);
@@ -40,6 +71,7 @@ export function selectedModel(state, graph) {
   return {
     selected,
     path,
+    target: navigationTarget(graph.messages, selected, graph.activeIds),
     inspector: inspectorContextResult(state.context.session, path),
     navigationBlock: navigationBlock(state.context, state.tree, state.treeHash),
   };

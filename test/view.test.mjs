@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { emptyContent } from "../src/view.js";
+import { emptyContent, summaryText } from "../src/view.js";
 
 const state = {
   loading: false,
@@ -18,4 +18,17 @@ test("unbound workspaces expose a no-session state", () => {
   const [title, , canLoad] = emptyContent(unbound, null);
   assert.match(title, /未绑定会话/);
   assert.equal(canLoad, false);
+});
+
+test("summary separates what is shown from the whole tree", () => {
+  const messages = [{ role: "user" }, { role: "assistant" }, { role: "assistant" }, { role: "user" }];
+  const users = messages.filter((item) => item.role === "user");
+  assert.equal(
+    summaryText({ mode: "all" }, { messages, visible: users }),
+    "全部显示 2 个节点（用户 2）· 全树共 4 个节点（用户 2 · Agent 2）",
+  );
+  assert.equal(
+    summaryText({ mode: "active" }, { messages, visible: messages }),
+    "当前路径显示 4 个节点（用户 2 · Agent 2）· 全树共 4 个节点（用户 2 · Agent 2）",
+  );
 });

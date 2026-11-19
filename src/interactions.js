@@ -1,4 +1,4 @@
-import { focusPath, panView, zoomView } from "./core.js";
+import { fitTree, focusPath, panView, zoomView } from "./core.js";
 import { graphModel, orderedNodeIds } from "./model.js";
 import { applyTransform } from "./view.js";
 
@@ -61,7 +61,8 @@ export class ConversationTreeInteractions {
       return point ? [{ x: point.x, y: point.y }] : [];
     });
     const rect = controls.canvas.getBoundingClientRect();
-    state.view = focusPath({ width: rect.width, height: rect.height }, anchor, points);
+    const viewport = { width: rect.width, height: rect.height };
+    state.view = fitTree(viewport, graph.positioned) ?? focusPath(viewport, anchor, points);
     applyTransform(controls, state);
   }
 
