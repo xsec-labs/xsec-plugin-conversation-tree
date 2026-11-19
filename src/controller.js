@@ -257,8 +257,10 @@ export class ConversationTreeController {
       throw new Error("conversation_tree_navigation_selection_mismatch");
     }
     if (selected.navigationBlock) throw new Error(selected.navigationBlock);
+    if (selected.target.block) throw new Error(selected.target.block);
+    if (selected.target.current) throw new Error("该节点已在当前分支上");
     if (!this.state.treeHash) throw new Error("conversation_tree_missing_tree_hash");
-    return { targetEntryId: entryId, expectedTreeHash: this.state.treeHash };
+    return { targetEntryId: selected.target.targetEntryId, expectedTreeHash: this.state.treeHash };
   }
 
   async performNavigation(entryId) {
@@ -275,22 +277,22 @@ export class ConversationTreeController {
       return;
     }
     if (!this.isCurrent(fence)) return;
-    this.acceptNavigation(response, entryId, request.expectedTreeHash);
+    this.acceptNavigation(response, request.targetEntryId, request.expectedTreeHash, entryId);
     console.info("conversation-tree.navigate.completed");
     this.state.navigating = false;
     this.render();
     this.interactions.resetView();
   }
 
-  acceptNavigation(response, entryId, navigationBaseHash) {
+  acceptNavigation(response, targetEntryId, navigationBaseHash, selectedId = targetEntryId) {
     Object.assign(this.state, {
-      tree: validateNavigationTree(response?.result, this.state.context.sessionId, entryId),
+      tree: validateNavigationTree(response?.result, this.state.context.sessionId, targetEntryId),
       treeHash: null,
       loadedTree: true,
       navigationBaseHash,
       source: { availability: "ready", label: "已切换" },
       notice: "分支已切换；等待宿主发布新的权威树摘要。",
-      selectedId: entryId,
+      selectedId,
     });
   }
 

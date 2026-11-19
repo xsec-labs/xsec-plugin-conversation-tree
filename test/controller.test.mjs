@@ -71,14 +71,14 @@ test("equivalent context updates do not rerender the conversation tree", () => {
 test("failed navigation preserves the current viewport", async () => {
   const branching = tree([
     message("root", { active: true }),
-    message("target", { parentId: "root" }),
+    message("target", { parentId: "root", role: "assistant" }),
   ], { activeLeafId: "root" });
   const controller = new ConversationTreeController({}, { navigateTree: async () => { throw new Error("rejected"); } });
   controller.state = stateFor(parseContext(context(branching)), {
     loading: false,
     selectedId: "target",
     mode: "all",
-    showAgentMessages: false,
+    showAgentMessages: true,
     query: "",
   });
   controller.render = () => null;
@@ -295,4 +295,54 @@ test("rebinding through an unbound workspace resets session filters", () => {
   assert.equal(controller.state.query, "");
   assert.equal(controller.state.mode, "all");
   assert.equal(controller.state.showAgentMessages, false);
+});
+
+function branchingStateFor(selectedId) {
+  const branching = tree([
+    message("u1", { active: true, timestamp: 1 }),
+    message("a1", { parentId: "u1", role: "assistant", active: true, timestamp: 2 }),
+    message("u2", { parentId: "a1", timestamp: 3 }),
+    message("a2", { parentId: "u2", role: "assistant", timestamp: 4 }),
+    message("a3", { parentId: "a2", role: "assistant", timestamp: 5 }),
+    message("u3", { parentId: "a1", timestamp: 6 }),
+    message("u4", { timestamp: 7 }),
+  ], { activeLeafId: "a1" });
+  const controller = new ConversationTreeController({});
+  controller.state = stateFor(parseContext(context(branching)), { loading: false, selectedId, mode: "all", showAgentMessages: false, query: "" });
+  return controller;
+}
+
+test("a user node navigates to the newest Agent reply on its branch", () => {
+  const controller = branchingStateFor("u2");
+  assert.equal(controller.navigationRequest("u2").targetEntryId, "a3");
+});
+
+test("an Agent node navigates to itself", () => {
+  const controller = branchingStateFor("a2");
+  controller.state.showAgentMessages = true;
+  assert.equal(controller.navigationRequest("a2").targetEntryId, "a2");
+});
+
+test("a user node without an Agent reply cannot be navigated to", () => {
+  for (const id of ["u3", "u4"]) {
+    assert.throws(() => branchingStateFor(id).navigationRequest(id), /还没有 Agent 回复/);
+  }
+});
+
+test("a user node on the active path is already the current branch", () => {
+  assert.throws(() => branchingStateFor("u1").navigationRequest("u1"), /已在当前分支/);
+});
+
+test("navigating from a user node keeps the user node selected", () => {
+  const controller = branchingStateFor("u2");
+  const navigated = tree([
+    message("u1", { active: true }),
+    message("a1", { parentId: "u1", role: "assistant", active: true }),
+    message("u2", { parentId: "a1", active: true }),
+    message("a2", { parentId: "u2", role: "assistant", active: true }),
+    message("a3", { parentId: "a2", role: "assistant", active: true }),
+  ], { activeLeafId: "a3" });
+  controller.acceptNavigation({ result: navigated }, "a3", "hash-1", "u2");
+  assert.equal(controller.state.selectedId, "u2");
+  assert.equal(controller.state.tree.activeLeafId, "a3");
 });
