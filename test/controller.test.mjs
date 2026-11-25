@@ -346,3 +346,70 @@ test("navigating from a user node keeps the user node selected", () => {
   assert.equal(controller.state.selectedId, "u2");
   assert.equal(controller.state.tree.activeLeafId, "a3");
 });
+
+test("a user node still resolves to its Agent reply when a newer sibling user child has no reply", () => {
+  const branching = tree([
+    message("u1", { active: true, timestamp: 1 }),
+    message("a1", { parentId: "u1", role: "assistant", active: true, timestamp: 2 }),
+    message("u2", { parentId: "a1", timestamp: 3 }),
+    message("a2", { parentId: "u2", role: "assistant", timestamp: 4 }),
+    message("u2-orphan", { parentId: "u2", timestamp: 9 }),
+  ], { activeLeafId: "a1" });
+  const controller = new ConversationTreeController({});
+  controller.state = stateFor(parseContext(context(branching)), {
+    loading: false,
+    selectedId: "u2",
+    mode: "all",
+    showAgentMessages: false,
+    query: "",
+  });
+  assert.equal(controller.navigationRequest("u2").targetEntryId, "a2");
+});
+
+test("a user node resolves to the newest Agent reply across nested forks in its subtree", () => {
+  const branching = tree([
+    message("u1", { active: true, timestamp: 1 }),
+    message("a1", { parentId: "u1", role: "assistant", active: true, timestamp: 2 }),
+    message("u2", { parentId: "a1", timestamp: 3 }),
+    message("a2-old-fork", { parentId: "u2", role: "assistant", timestamp: 4 }),
+    message("u3", { parentId: "a2-old-fork", timestamp: 5 }),
+    message("a3-newest", { parentId: "u3", role: "assistant", timestamp: 20 }),
+    message("a2-newer-sibling", { parentId: "u2", role: "assistant", timestamp: 6 }),
+    message("u4-unreplied", { parentId: "a2-old-fork", timestamp: 25 }),
+  ], { activeLeafId: "a1" });
+  const controller = new ConversationTreeController({});
+  controller.state = stateFor(parseContext(context(branching)), {
+    loading: false,
+    selectedId: "u2",
+    mode: "all",
+    showAgentMessages: false,
+    query: "",
+  });
+  assert.equal(controller.navigationRequest("u2").targetEntryId, "a3-newest");
+});
+
+test("navigationTarget handles deep branches without recursive stack overflow", () => {
+  const rows = [
+    message("u0", { active: true, timestamp: 1 }),
+    message("a0", { parentId: "u0", role: "assistant", active: true, timestamp: 2 }),
+  ];
+  let parentId = "a0";
+  for (let index = 0; index < 5000; index += 1) {
+    const id = `deep-${index}`;
+    rows.push(message(id, {
+      parentId,
+      role: index % 2 === 0 ? "user" : "assistant",
+      timestamp: 10 + index,
+    }));
+    parentId = id;
+  }
+  const controller = new ConversationTreeController({});
+  controller.state = stateFor(parseContext(context(tree(rows, { activeLeafId: "a0" }))), {
+    loading: false,
+    selectedId: "deep-0",
+    mode: "all",
+    showAgentMessages: false,
+    query: "",
+  });
+  assert.equal(controller.navigationRequest("deep-0").targetEntryId, "deep-4999");
+});

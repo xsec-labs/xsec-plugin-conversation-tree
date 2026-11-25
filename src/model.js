@@ -33,13 +33,15 @@ export function graphModel(state) {
   return { messages, leafId, active, activeIds, visible, selectedId, layout, depths, positioned, positions };
 }
 
-function latestChild(children) {
-  return [...children].sort((left, right) => left.timestamp - right.timestamp || left.entryId.localeCompare(right.entryId)).at(-1);
+function isNewerMessage(candidate, current) {
+  if (!current) return true;
+  return candidate.timestamp > current.timestamp
+    || (candidate.timestamp === current.timestamp && candidate.entryId.localeCompare(current.entryId) > 0);
 }
 
 // The host only navigates "exact" and only to Agent messages. A user message
-// stands for its branch, so it resolves to the newest Agent reply on that
-// branch: follow the latest child at each fork and stop at the last Agent node.
+// stands for its branch, so it resolves to the newest Agent reply anywhere in
+// its subtree (matching the host's latest-descendant ordering by timestamp/id).
 export function navigationTarget(messages, selected, activeIds) {
   if (selected.role === "assistant") {
     return { targetEntryId: selected.entryId, current: false, block: null };
@@ -50,14 +52,22 @@ export function navigationTarget(messages, selected, activeIds) {
   for (const message of messages) {
     const parent = parents.get(message.entryId);
     if (!parent) continue;
-    children.set(parent, [...(children.get(parent) ?? []), message]);
+    let siblings = children.get(parent);
+    if (!siblings) {
+      siblings = [];
+      children.set(parent, siblings);
+    }
+    siblings.push(message);
   }
   let target = null;
-  let current = selected;
-  while (current) {
-    if (current.role === "assistant") target = current;
+  const stack = [selected];
+  while (stack.length) {
+    const current = stack.pop();
+    if (current.role === "assistant" && isNewerMessage(current, target)) target = current;
     const next = children.get(current.entryId);
-    current = next ? latestChild(next) : null;
+    if (next) {
+      for (const child of next) stack.push(child);
+    }
   }
   if (!target) return { targetEntryId: null, current: false, block: "该用户消息还没有 Agent 回复，无法切换到此分支" };
   return { targetEntryId: target.entryId, current: false, block: null };

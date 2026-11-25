@@ -292,10 +292,16 @@ const FIT_MIN_SCALE = 0.6;
 // when it cannot fit at a readable scale, fall back to the active path.
 export function fitTree(viewport, points) {
   if (!points.length) return null;
-  const minX = Math.min(...points.map((point) => point.x));
-  const maxX = Math.max(...points.map((point) => point.x + NODE_WIDTH));
-  const minY = Math.min(...points.map((point) => point.y));
-  const maxY = Math.max(...points.map((point) => point.y + NODE_HEIGHT));
+  let minX = points[0].x;
+  let maxX = points[0].x + NODE_WIDTH;
+  let minY = points[0].y;
+  let maxY = points[0].y + NODE_HEIGHT;
+  for (const point of points) {
+    minX = Math.min(minX, point.x);
+    maxX = Math.max(maxX, point.x + NODE_WIDTH);
+    minY = Math.min(minY, point.y);
+    maxY = Math.max(maxY, point.y + NODE_HEIGHT);
+  }
   const availableWidth = Math.max(1, viewport.width - HORIZONTAL_SAFE_AREA * 2);
   const availableHeight = Math.max(1, viewport.height - TOP_SAFE_AREA - BOTTOM_SAFE_AREA);
   const scale = Math.min(DEFAULT_SCALE, availableWidth / (maxX - minX), availableHeight / (maxY - minY));

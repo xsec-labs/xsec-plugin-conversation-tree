@@ -128,3 +128,8 @@ test("fitTree gives up when the graph cannot be read at a useful scale", () => {
   assert.equal(fitTree({ width: 571, height: 503 }, points), null);
   assert.equal(fitTree({ width: 571, height: 503 }, []), null);
 });
+
+test("fitTree handles large point lists without spread stack limits", () => {
+  const points = Array.from({ length: 5000 }, (_, index) => ({ x: 40, y: 40 + index * 100 }));
+  assert.equal(fitTree({ width: 571, height: 503 }, points), null);
+});
