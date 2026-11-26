@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   activeLeafId,
   activePath,
+  fitTree,
   focusPath,
   layoutTree,
   matchesQuery,
@@ -106,4 +107,29 @@ test("tree validation requires a real session and active leaf", () => {
   assert.throws(() => validateTree(tree(branch, { activeLeafId: "missing" })), /active_leaf_missing/);
   assert.throws(() => validateTree({ ...tree(branch), protocolVersion: 2 }), /unsupported_protocol/);
   assert.throws(() => validateTree({ ...tree(branch), protocolVersion: undefined }), /unsupported_protocol/);
+});
+
+test("fitTree shows every branch of a two-root tree at the default scale", () => {
+  const roots = [message("a", { timestamp: 1 }), message("b", { timestamp: 2 })];
+  const layout = layoutTree(roots);
+  const points = roots.map((root) => layout.positions.get(root.entryId));
+  const viewport = { width: 571, height: 503 };
+  const view = fitTree(viewport, points);
+  assert.ok(view);
+  for (const point of points) {
+    const left = view.x + point.x * view.scale;
+    const right = left + 166 * view.scale;
+    assert.ok(left >= 0 && right <= viewport.width, `node at ${point.x} is inside the viewport`);
+  }
+});
+
+test("fitTree gives up when the graph cannot be read at a useful scale", () => {
+  const points = Array.from({ length: 12 }, (_, index) => ({ x: 40 + index * 200, y: 40 }));
+  assert.equal(fitTree({ width: 571, height: 503 }, points), null);
+  assert.equal(fitTree({ width: 571, height: 503 }, []), null);
+});
+
+test("fitTree handles large point lists without spread stack limits", () => {
+  const points = Array.from({ length: 5000 }, (_, index) => ({ x: 40, y: 40 + index * 100 }));
+  assert.equal(fitTree({ width: 571, height: 503 }, points), null);
 });

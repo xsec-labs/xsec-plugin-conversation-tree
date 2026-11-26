@@ -41,7 +41,7 @@ export function emptyContent(state, graph) {
   }
   if (state.source.availability === "missing_session") return ["当前未绑定会话", "打开或选择一个会话后可读取对话树。", false];
   if (graph && !graph.messages.length) return ["当前对话树没有消息节点", "宿主返回了一个有效的空对话树快照。", false];
-  if (graph && !graph.visible.length) return ["当前范围没有可见节点", "可调整范围或开启“显示 Agent 消息”查看其他节点。", false];
+  if (graph && !graph.visible.length) return ["当前范围没有可见节点", "可调整范围或开启“显示 Agent 节点”查看其他节点。", false];
   return ["尚未缓存对话树", "加载完整树是显式操作，可能恢复当前会话的本地运行时。", true];
 }
 
@@ -160,12 +160,13 @@ function renderInspectorContext(container, inspector) {
 }
 
 function navigationButton({ state, graph, selected, actions }) {
-  const isCurrent = selected.selected.entryId === graph.leafId;
+  const isCurrent = selected.target.current || selected.selected.entryId === graph.leafId;
   const label = isCurrent ? "当前分支" : "切换到此分支";
   const action = button("ct-action", state.navigating ? "正在切换…" : label);
-  const blocked = selected.navigationBlock;
+  const blocked = selected.navigationBlock ?? selected.target.block;
   action.disabled = isCurrent || Boolean(blocked) || state.loading || state.navigating;
-  action.title = isCurrent ? "该节点已是当前分支" : blocked ?? "精确切换到所选分支";
+  const userNode = selected.selected.role === "user";
+  action.title = isCurrent ? "该节点已是当前分支" : blocked ?? (userNode ? "切换到该分支最新的 Agent 回复" : "精确切换到所选分支");
   action.addEventListener("click", () => actions.navigate(selected.selected.entryId));
   return action;
 }
@@ -195,11 +196,21 @@ function renderInspector({ controls, state, graph, selected, actions }) {
   controls.inspector.append(header, preview, facts, toggle, context);
 }
 
+export function summaryText(state, graph) {
+  const count = (messages, role) => messages.filter((message) => message.role === role).length;
+  const users = count(graph.visible, "user");
+  const agents = count(graph.visible, "assistant");
+  const shown = agents ? `用户 ${users} · Agent ${agents}` : `用户 ${users}`;
+  const scope = state.mode === "active" ? "当前路径" : "全部";
+  const total = `全树共 ${graph.messages.length} 个节点（用户 ${count(graph.messages, "user")} · Agent ${count(graph.messages, "assistant")}）`;
+  return `${scope}显示 ${graph.visible.length} 个节点（${shown}）· ${total}`;
+}
+
 export function renderView({ controls, state, graph, selected, actions }) {
   controls.shell.inert = !state.context.visible;
   renderHeader(controls, state);
   renderEmpty(controls, state, graph);
-  controls.summary.textContent = graph ? `${graph.visible.length} 个可见节点 · 全树 ${graph.messages.length} 个节点` : "";
+  controls.summary.textContent = graph ? summaryText(state, graph) : "";
   setHidden(controls.summary, !graph);
   controls.search.disabled = !graph || !state.context.visible;
   controls.all.disabled = !graph || !state.context.visible;
